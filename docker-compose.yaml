@@ -20,7 +20,9 @@ services:
 
   rocketchat:
     image: rocket.chat:latest
-    restart: unless-stopped
+    networks:
+      - default
+      - traefik-public
     links:
       - mongo
     environment:
@@ -36,29 +38,9 @@ services:
         - traefik.port=3000
         - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
         - traefik.docker.network=traefik-public
-        # Traefik service that listens to HTTP
         - traefik.redirectorservice.frontend.entryPoints=http
         - traefik.redirectorservice.frontend.redirect.entryPoint=https
-        # Traefik service that listens to HTTPS
         - traefik.webservice.frontend.entryPoints=https
-rocket:
-  image: rocket.chat
-  networks:
-    - default
-    - traefik-public
-  links:
-  deploy:
-    labels:
-      - traefik.frontend.rule=Host:${DOMAIN?Variable DOMAIN not set}
-      - traefik.enable=true
-      - traefik.port=8080
-      - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
-      - traefik.docker.network=traefik-public
-      # Traefik service that listens to HTTP
-      - traefik.redirectorservice.frontend.entryPoints=http
-      - traefik.redirectorservice.frontend.redirect.entryPoint=https
-      # Traefik service that listens to HTTPS
-      - traefik.webservice.frontend.entryPoints=https
 volumes:
   mongo_data:
 networks:
