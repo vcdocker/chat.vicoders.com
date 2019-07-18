@@ -11,7 +11,9 @@ services:
 
   mongo-init-replica:
     image: mongo:3.2
-    command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs01'', members: [ { _id: 0, host: ''localhost:27017'' } ]})"'
+    links:
+      - mongo
+    command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs01'', members: [ { _id: 0, host: ''mongo:27017'' } ]})"'
     networks:
       - default
       - traefik-public
@@ -20,11 +22,11 @@ services:
 
   rocketchat:
     image: rocket.chat:latest
+    links:
+      - mongo
     networks:
       - default
       - traefik-public
-    links:
-      - mongo
     environment:
       - ROOT_URL=${SCHEMA:-https}://${DOMAIN?Variable DOMAIN not set}
       - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
