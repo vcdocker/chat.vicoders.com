@@ -8,16 +8,17 @@ services:
     networks:
       - default
       - traefik-public
-  # mongo-init-replica:
-  #   image: mongo:3.2
-  #   command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs01'', members: [ { _id: 0, host: ''localhost:27017'' } ]})"'
-  #   networks:
-  #     - default
-  #     - traefik-public
-  #   links:
-  #     - mongo
-  #   depends_on:
-  #     - mongo
+  mongo-init-replica:
+    image: mongo:3.2
+    replicas: 0
+    command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs01'', members: [ { _id: 0, host: ''localhost:27017'' } ]})"'
+    networks:
+      - default
+      - traefik-public
+    links:
+      - mongo
+    depends_on:
+      - mongo
 
   rocketchat:
     image: rocket.chat:latest
@@ -28,10 +29,8 @@ services:
       - mongo
     environment:
       - ROOT_URL=${SCHEMA:-https}://${DOMAIN?Variable DOMAIN not set}
-      # - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
-      # - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs01
-      - MONGO_URL=mongodb://mongo:27017/rocketchat
-      - MONGO_OPLOG_URL=mongodb://mongo:27017/local
+      - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs01
     depends_on:
       - mongo
     deploy:
