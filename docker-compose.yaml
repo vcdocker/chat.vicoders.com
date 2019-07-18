@@ -4,10 +4,21 @@ services:
     image: mongo:3.2
     volumes:
       - mongo_data:/data/db
-    command: mongod --smallfiles
+    command: mongod --smallfiles --oplogSize 128 --replSet rs01
     networks:
       - default
       - traefik-public
+  mongo-init-replica:
+    image: mongo:3.2
+    command: 'mongo mongo/rocketchat'
+    networks:
+      - default
+      - traefik-public
+    links:
+      - mongo
+    depends_on:
+      - mongo
+
   rocketchat:
     image: rocket.chat:latest
     networks:
@@ -17,7 +28,8 @@ services:
       - mongo
     environment:
       - ROOT_URL=${SCHEMA:-https}://${DOMAIN?Variable DOMAIN not set}
-      - MONGO_URL=mongodb://mongo:27017/rocketchat
+      - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs01
     depends_on:
       - mongo
     deploy:
