@@ -26,7 +26,7 @@ services:
     links:
       - mongo
     environment:
-      - ROOT_URL=${DOMAIN?Variable DOMAIN not set}
+      - ROOT_URL=${SCHEMA:-https}://${DOMAIN?Variable DOMAIN not set}
       - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
       - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs01
     depends_on:
