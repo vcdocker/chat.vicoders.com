@@ -1,20 +1,33 @@
 version: "3.6"
+
 services:
   mongo:
     image: mongo:3.2
     volumes:
       - mongo_data:/data/db
-    command: mongod --smallfiles
+    command: mongod --smallfiles --oplogSize 128 --replSet rs0 --storageEngine=mmapv1
+
+  mongo-init-replica:
+    image: mongo:3.2
+    links:
+      - mongo:mongo
+    command: 'bash -c "for i in `seq 1 30`; do mongo mongo/rocketchat --eval \"rs.initiate({ _id: ''rs0'', members: [ { _id: 0, host: ''localhost:27017'' } ]})\" && s=$$? && break || s=$$?; echo \"Tried $$i times. Waiting 5 secs...\"; sleep 5; done; (exit $$s)"'
+    depends_on:
+      - mongo
+
   rocketchat:
     image: rocket.chat:latest
-    networks:
-      - default
-      - traefik-public
     links:
-      - mongo
+      - mongo:mongo
+    command: bash -c 'for i in `seq 1 30`; do node main.js && s=$$? && break || s=$$?; echo "Tried $$i times. Waiting 5 secs..."; sleep 5; done; (exit $$s)'
+    volumes:
+      - rocket_data:/app/uploads
     environment:
+      - PORT=3000
       - ROOT_URL=${SCHEMA:-https}://${DOMAIN?-chat.vicoders.com}
       - MONGO_URL=mongodb://mongo:27017/rocketchat
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local
+      - Accounts_UseDNSDomainCheck=True
     depends_on:
       - mongo
     deploy:
@@ -27,8 +40,26 @@ services:
         - traefik.redirectorservice.frontend.entryPoints=http
         - traefik.redirectorservice.frontend.redirect.entryPoint=https
         - traefik.webservice.frontend.entryPoints=https
+
+  hubot:
+    image: rocketchat/hubot-rocketchat:latest
+    links:
+      - mongo:mongo
+    environment:
+      - ROCKETCHAT_URL=mongo:3000
+      - ROCKETCHAT_ROOM=GENERAL
+      - ROCKETCHAT_USER=VicodersBot
+      - ROCKETCHAT_PASSWORD=botpassword
+      - BOT_NAME=VicodersBot
+      - EXTERNAL_SCRIPTS=hubot-help,hubot-seen,hubot-links,hubot-diagnostics
+    depends_on:
+      - rocketchat
+    volumes:
+      - hubot_data:/home/hubot/scripts
+    # ports:
+    #   - 3001:8080
+      
 volumes:
   mongo_data:
-networks:
-  traefik-public:
-    external: true
+  rocket_data:
+  hubot_data:
