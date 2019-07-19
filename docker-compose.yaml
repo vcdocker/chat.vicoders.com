@@ -4,21 +4,7 @@ services:
     image: mongo:3.2
     volumes:
       - mongo_data:/data/db
-    command: mongod --smallfiles --oplogSize 128 --replSet rs01
-    networks:
-      - default
-      - traefik-public
-  mongo-init-replica:
-    image: mongo:3.2
-    command: 'mongo mongo/rocketchat --eval "rs.initiate({ _id: ''rs01'', members: [ { _id: 0, host: ''localhost:27017'' } ]})"'
-    networks:
-      - default
-      - traefik-public
-    links:
-      - mongo
-    depends_on:
-      - mongo
-
+    command: mongod --smallfiles
   rocketchat:
     image: rocket.chat:latest
     networks:
@@ -27,14 +13,13 @@ services:
     links:
       - mongo
     environment:
-      - ROOT_URL=${SCHEMA:-https}://${DOMAIN?Variable DOMAIN not set}
-      - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs01
-      - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs01
+      - ROOT_URL=${SCHEMA:-https}://${DOMAIN?-chat.vicoders.com}
+      - MONGO_URL=mongodb://mongo:27017/rocketchat
     depends_on:
       - mongo
     deploy:
       labels:
-        - traefik.frontend.rule=Host:${DOMAIN?Variable DOMAIN not set}
+        - traefik.frontend.rule=Host:${DOMAIN?-chat.vicoders.com}
         - traefik.enable=true
         - traefik.port=3000
         - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
