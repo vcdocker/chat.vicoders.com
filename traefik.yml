@@ -1,146 +1,94 @@
 version: "3.3"
 
 services:
-  consul-leader:
-    image: consul
-    command: agent -server -client=0.0.0.0 -bootstrap -ui
-    volumes:
-      - consul-data-leader:/consul/data
-    environment:
-      - CONSUL_BIND_INTERFACE=eth0
-      - 'CONSUL_LOCAL_CONFIG={"leave_on_terminate": true}'
-    networks:
-      - default
-      - traefik-public
-    deploy:
-      labels:
-        - traefik.frontend.rule=Host:consul.${DOMAIN?Variable DOMAIN not set}
-        - traefik.enable=true
-        - traefik.port=8500
-        - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
-        - traefik.docker.network=traefik-public
-        # Traefik service that listens to HTTP
-        - traefik.redirectorservice.frontend.entryPoints=http
-        - traefik.redirectorservice.frontend.redirect.entryPoint=https
-        # Traefik service that listens to HTTPS
-        - traefik.webservice.frontend.entryPoints=https
-        - traefik.frontend.auth.basic.users=${USERNAME?Variable USERNAME not set}:${HASHED_PASSWORD?Variable HASHED_PASSWORD not set}
-  consul-replica:
-    image: consul
-    command: agent -server -client=0.0.0.0 -retry-join="consul-leader"
-    volumes:
-      - consul-data-replica:/consul/data
-    environment:
-      - CONSUL_BIND_INTERFACE=eth0
-      - 'CONSUL_LOCAL_CONFIG={"leave_on_terminate": true}'
-    networks:
-      - default
-      - traefik-public
-    deploy:
-      replicas: ${CONSUL_REPLICAS:-3}
-      placement:
-        preferences:
-          - spread: node.id
-
-  traefik:
-    image: traefik:v1.7
-    ports:
-      - 80:80
-      - 443:443
-    deploy:
-      replicas: ${TRAEFIK_REPLICAS:-3}
-      placement:
-        constraints:
-          - node.role == manager
-        preferences:
-          - spread: node.id
-      labels:
-        - traefik.frontend.rule=Host:traefik.${DOMAIN?Variable DOMAIN not set}
-        - traefik.enable=true
-        - traefik.port=8080
-        - traefik.tags=traefik-public
-        - traefik.docker.network=traefik-public
-        - traefik.redirectorservice.frontend.entryPoints=http
-        - traefik.redirectorservice.frontend.redirect.entryPoint=https
-        - traefik.webservice.frontend.entryPoints=https
-        - traefik.frontend.auth.basic.users=${USERNAME?Variable USERNAME not set}:${HASHED_PASSWORD?Variable HASHED_PASSWORD not set}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+  rocketchat:
+    image: rocketchat/rocket.chat:latest
     command: >
-      --docker
-      --docker.swarmmode
-      --docker.watch
-      --docker.exposedbydefault=false
-      --constraints=tag==traefik-public
-      --entrypoints='Name:http Address::80'
-      --entrypoints='Name:https Address::443 TLS'
-      --consul
-      --consul.endpoint="consul-leader:8500"
-      --acme
-      --acme.email=${EMAIL?Variable EMAIL not set}
-      --acme.storage="traefik/acme/account"
-      --acme.entryPoint=https
-      --acme.httpChallenge.entryPoint=http
-      --acme.onhostrule=true
-      --acme.acmelogging=true
-      --logLevel=INFO
-      --accessLog
-      --api
-    networks:
-      - default
-      - traefik-public
-    depends_on:
-      - consul-leader
-  portainer:
-    image: portainer/portainer
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainerdata:/data
-    networks:
-      - traefik-public
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-      labels:
-        - traefik.frontend.rule=Host:portainer.${DOMAIN?Variable DOMAIN not set}
-        - traefik.enable=true
-        - traefik.port=9000
-        - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
-        - traefik.docker.network=traefik-public
-        # Traefik service that listens to HTTP
-        - traefik.redirectorservice.frontend.entryPoints=http
-        - traefik.redirectorservice.frontend.redirect.entryPoint=https
-        # Traefik service that listens to HTTPS
-        - traefik.webservice.frontend.entryPoints=https
-  db:
-    image: mongo:3.0
-    networks:
-      - default
-      - traefik-public
-  rocket:
-    image: rocket.chat
-    networks:
-      - default
-      - traefik-public
+      bash -c
+        "for i in `seq 1 30`; do
+          node main.js &&
+          s=$$? && break || s=$$?;
+          echo \"Tried $$i times. Waiting 5 secs...\";
+          sleep 5;
+        done; (exit $$s)"
     links:
-      - db
+      - mongo
+    volumes:
+      - uploads:/app/uploads
+    environment:
+      - PORT=3000
+      - ROOT_URL=http://localhost:3000
+      - MONGO_URL=mongodb://mongo:27017/rocketchat
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local
+      - MAIL_URL=smtp://smtp.email
+      - HTTP_PROXY=https://chat.vicoders.com
+      - HTTPS_PROXY=https://chat.vicoders.com
+    depends_on:
+      - mongo
     deploy:
       labels:
-        - traefik.frontend.rule=Host:${DOMAIN?Variable DOMAIN not set}
-        - traefik.enable=true
-        - traefik.port=8080
-        - traefik.tags=${TRAEFIK_PUBLIC_TAG:-traefik-public}
-        - traefik.docker.network=traefik-public
-        # Traefik service that listens to HTTP
-        - traefik.redirectorservice.frontend.entryPoints=http
-        - traefik.redirectorservice.frontend.redirect.entryPoint=https
-        # Traefik service that listens to HTTPS
-        - traefik.webservice.frontend.entryPoints=https
-volumes:
-  consul-data-leader:
-  consul-data-replica:
-  portainerdata:
+        - "traefik.enable=true"
+        - "traefik.http.routers.chat_vicoders_com.rule=Host(`chat.vicoders.com`)"
+        - "traefik.http.routers.chat_vicoders_com-secure.rule=Host(`chat.vicoders.com`)"
+        - "traefik.http.routers.chat_vicoders_com.entryPoints=http"
+        - "traefik.http.routers.chat_vicoders_com-secure.entryPoints=https"
+        - "traefik.http.routers.chat_vicoders_com-secure.tls.certresolver=staging"
+        - "traefik.http.middlewares.chat_vicoders_com-redirector.redirectscheme.scheme=https"
+        - "traefik.http.routers.chat_vicoders_com.middlewares=chat_vicoders_com-redirector"
+        - "traefik.http.services.chat_vicoders_com-secure.loadbalancer.server.port=3000"
 
-networks:
-  traefik-public:
-    external: true
+  mongo:
+    image: mongo:4.0
+    volumes:
+      - db:/data/db
+    command: mongod --smallfiles --oplogSize 128 --replSet rs0 --storageEngine=mmapv1
+    labels:
+      - "traefik.enable=false"
+
+  # this container's job is just run the command to initialize the replica set.
+  # it will run the command and remove himself (it will not stay running)
+  # mongo-init-replica:
+  #   image: mongo:4.0
+  #   command: >
+  #     bash -c
+  #       "for i in `seq 1 30`; do
+  #         mongo mongo/rocketchat --eval \"
+  #           rs.initiate({
+  #             _id: 'rs0',
+  #             members: [ { _id: 0, host: 'localhost:27017' } ]})\" &&
+  #         s=$$? && break || s=$$?;
+  #         echo \"Tried $$i times. Waiting 5 secs...\";
+  #         sleep 5;
+  #       done; (exit $$s)"
+  #   depends_on:
+  #     - mongo
+
+  # hubot, the popular chatbot (add the bot user first and change the password before starting this image)
+  hubot:
+    image: rocketchat/hubot-rocketchat:latest
+    environment:
+      - "ROCKETCHAT_URL=rocketchat:3000"
+      - "ROCKETCHAT_ROOM=GENERAL"
+      - "ROCKETCHAT_USER=bot"
+      - "ROCKETCHAT_PASSWORD=botpassword"
+      - "BOT_NAME=bot"
+      # you can add more scripts as you'd like here, they need to be installable by npm
+      - "EXTERNAL_SCRIPTS=hubot-help,hubot-seen,hubot-links,hubot-diagnostics"
+    links:
+      - rocketchat
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hubot_chat_vicoders_com.rule=Host(`hubot.chat.vicoders.com`)"
+      - "traefik.http.routers.hubot_chat_vicoders_com-secure.rule=Host(`hubot.chat.vicoders.com`)"
+      - "traefik.http.routers.hubot_chat_vicoders_com.entryPoints=http"
+      - "traefik.http.routers.hubot_chat_vicoders_com-secure.entryPoints=https"
+      - "traefik.http.routers.hubot_chat_vicoders_com-secure.tls.certresolver=staging"
+      - "traefik.http.middlewares.hubot_chat_vicoders_com-redirector.redirectscheme.scheme=https"
+      - "traefik.http.routers.hubot_chat_vicoders_com.middlewares=hubot_chat_vicoders_com-redirector"
+      - "traefik.http.services.hubot_chat_vicoders_com-secure.loadbalancer.server.port=8080"
+    volumes:
+      - scripts:/home/hubot/scripts
+volumes:
+  db:
+  uploads:
+  scripts:
