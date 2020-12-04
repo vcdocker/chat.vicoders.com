@@ -21,7 +21,7 @@ services:
       - MONGO_URL=mongodb://mongo:27017/rocketchat
       - MONGO_OPLOG_URL=mongodb://mongo:27017/local
       - MAIL_URL=smtp://smtp.email
-      - HTTP_PROXY=https://chat.vicoders.com
+      - HTTP_PROXY=http://chat.vicoders.com
       - HTTPS_PROXY=https://chat.vicoders.com
     depends_on:
       - mongo
