@@ -1,5 +1,17 @@
 version: "3.3"
 
+
+networks:
+  default:
+  vcrobot:
+    external: true
+
+
+volumes:
+  db:
+  uploads:
+  #scripts
+  
 services:
   rocketchat:
     image: rocketchat/rocket.chat:latest
@@ -13,6 +25,9 @@ services:
         done; (exit $$s)"
     links:
       - mongo
+    networks:
+      - vcrobot
+      - default
     volumes:
       - uploads:/app/uploads
     environment:
@@ -20,7 +35,7 @@ services:
       - ROOT_URL=http://localhost:3000
       - MONGO_URL=mongodb://mongo:27017/rocketchat
       - MONGO_OPLOG_URL=mongodb://mongo:27017/local
-      - MAIL_URL=smtp://smtp.email
+      - MAIL_URL=smtp://smtp.gmail.com
       - HTTP_PROXY=http://chat.vicoders.com
       - HTTPS_PROXY=https://chat.vicoders.com
     depends_on:
@@ -42,9 +57,7 @@ services:
     volumes:
       - db:/data/db
     command: mongod --smallfiles --oplogSize 128 --replSet rs0 --storageEngine=mmapv1
-    labels:
-      - "traefik.enable=false"
-
+    
   # this container's job is just run the command to initialize the replica set.
   # it will run the command and remove himself (it will not stay running)
   # mongo-init-replica:
@@ -88,7 +101,3 @@ services:
       - "traefik.http.services.hubot_chat_vicoders_com-secure.loadbalancer.server.port=8080"
     volumes:
       - scripts:/home/hubot/scripts
-volumes:
-  db:
-  uploads:
-  scripts:
